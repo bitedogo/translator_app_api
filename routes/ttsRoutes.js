@@ -6,10 +6,7 @@ router.post('/', async (req, res) => {
     const { inputText, audioUrl, voiceSetting } = req.body; 
     
     if (!inputText || !audioUrl) {
-        return res.status(400).json({ 
-            success: false, 
-            error: 'Missing required fields: inputText, audioUrl' 
-        });
+        return res.status(400).json({ success: false, error: 'Missing required fields: inputText, audioUrl' });
     }
     
     try {
@@ -27,18 +24,9 @@ router.post('/', async (req, res) => {
         );
         
         const insertedId = result.outBinds.id[0];
-        res.json({ 
-            success: true, 
-            id: insertedId, 
-            message: 'TTS record saved successfully' 
-        });
+        res.json({ success: true, id: insertedId, message: 'TTS record saved successfully' });
     } catch (err) {
-        console.error('TTS save error:', err.message);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Failed to save TTS record', 
-            details: err.message 
-        });
+        res.status(500).json({ success: false, error: 'Failed to save TTS record', details: err.message });
     }
 });
 
@@ -51,18 +39,9 @@ router.get('/', async (req, res) => {
              ORDER BY created_at DESC`
         );
         
-        res.json({ 
-            success: true, 
-            count: result.rows.length, 
-            data: result.rows 
-        });
+        res.json({ success: true, count: result.rows.length, data: result.rows });
     } catch (err) {
-        console.error('TTS fetch error:', err.message);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Failed to fetch TTS records', 
-            details: err.message 
-        });
+        res.status(500).json({ success: false, error: 'Failed to fetch TTS records', details: err.message });
     }
 });
 

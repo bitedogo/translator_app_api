@@ -7,6 +7,7 @@ const dbConfig = {
 };
 
 oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
+oracledb.fetchAsString = [ oracledb.CLOB ];
 
 const createTable = async (connection, tableName, tableSchema) => {
     const sql = `
@@ -24,15 +25,12 @@ const createTable = async (connection, tableName, tableSchema) => {
         END;
     `;
     await connection.execute(sql);
-    console.log(`Table ${tableName} ensured.`);
 };
 
 async function initializeDB() {
     let connection;
     try {
-        console.log('Connecting to Oracle DB...');
         connection = await oracledb.getConnection(dbConfig);
-        console.log('Connected to Oracle DB');
 
         await createTable(connection, 'TRANSLATIONS', `
             id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -58,17 +56,14 @@ async function initializeDB() {
             VOICE_SETTING VARCHAR2(50),
             CREATED_AT TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         `);
-        
-        console.log('Database initialized (3 tables confirmed).');
     } catch (err) {
-        console.error('DB initialization error:', err.message);
         throw err;
     } finally {
         if (connection) {
             try {
                 await connection.close();
             } catch (err) {
-                console.error('Error closing connection:', err);
+                // Error closing connection
             }
         }
     }
@@ -87,7 +82,7 @@ async function executeQuery(sql, binds = [], opts = {}) {
             try {
                 await connection.close();
             } catch (err) {
-                console.error('Error closing connection:', err);
+                // Error closing connection
             }
         }
     }

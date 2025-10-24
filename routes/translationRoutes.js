@@ -3,55 +3,45 @@ const router = express.Router();
 const db = require('../db');
 const axios = require('axios');
 
+// MyMemory API 엔드포인트
 const MYMEMORY_API_URL = 'https://api.mymemory.translated.net/get';
 
 router.post('/', async (req, res) => {
-    console.log('Received translation request:', req.body);
-    
     const { originalText, fromLang, toLang } = req.body;
-    let translatedText;
+    let translatedText; 
 
     if (!originalText || !fromLang || !toLang) {
-        console.log('Missing fields - originalText:', !!originalText, 'fromLang:', !!fromLang, 'toLang:', !!toLang);
-        return res.status(400).json({ 
-            success: false, 
-            error: 'Missing required fields: originalText, fromLang, toLang',
-            received: { originalText: !!originalText, fromLang: !!fromLang, toLang: !!toLang }
-        });
+        return res.status(400).json({ success: false, error: 'Missing required fields: originalText, fromLang, toLang' });
     }
     
     try {
+        // 1. MyMemory API 호출 (GET 방식)
+        const langPair = `${fromLang}|${toLang}`;
+        
         const response = await axios.get(MYMEMORY_API_URL, {
             params: {
                 q: originalText,
-                langpair: `${fromLang}|${toLang}`
-            },
-            timeout: 10000
+                langpair: langPair
+            }
+            // email 파라미터가 필요하다면 여기에 추가:
+            // de: 'your-email@example.com'
         });
 
-        console.log('MyMemory API Response:', response.data);
-
+        // 2. MyMemory 응답 구조에서 번역 텍스트 추출
         if (response.data && response.data.responseData && response.data.responseData.translatedText) {
             translatedText = response.data.responseData.translatedText;
         } else {
-            console.error('MyMemory API Error Response:', response.data);
-            return res.status(500).json({ 
+             // API가 200을 반환했으나 번역에 실패한 경우
+             console.error('MyMemory API Error Response:', response.data);
+             return res.status(500).json({ 
                 success: false, 
                 error: 'Translation service returned an invalid response.', 
-                details: response.data || 'No response data'
+                details: response.data.responseDetails || 'No translation found'
             });
         }
     } catch (apiErr) {
+        // 3. 네트워크 오류 또는 API 서버 5xx 오류
         console.error('External API call error:', apiErr.message);
-        
-        if (apiErr.code === 'ECONNABORTED') {
-            return res.status(504).json({ 
-                success: false, 
-                error: 'Translation service timeout. Please try again.',
-                details: 'Request timed out after 10 seconds'
-            });
-        }
-        
         return res.status(500).json({ 
             success: false, 
             error: 'Failed to connect to the external translation service.',
@@ -59,6 +49,7 @@ router.post('/', async (req, res) => {
         });
     }
 
+    // 4. DB 저장 로직 (이전과 동일)
     try {
         const result = await db.executeQuery(
             `INSERT INTO translations (original_text, translated_text, from_lang, to_lang)
@@ -66,7 +57,7 @@ router.post('/', async (req, res) => {
              RETURNING id INTO :id`,
             {
                 originalText,
-                translatedText,
+                translatedText, // MyMemory에서 받은 번역 결과
                 fromLang,
                 toLang,
                 id: { dir: db.oracledb.BIND_OUT, type: db.oracledb.NUMBER }
@@ -79,19 +70,17 @@ router.post('/', async (req, res) => {
             success: true, 
             id: insertedId, 
             originalText,
-            translatedText,
+            translatedText, // 번역 결과도 함께 응답
             message: 'Translation saved successfully' 
         });
 
     } catch (dbErr) {
         console.error('Translation DB save error:', dbErr.message);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Failed to save translation history to database.', 
-            details: dbErr.message 
-        });
+        res.status(500).json({ success: false, error: 'Failed to save translation history to database.', details: dbErr.message });
     }
 });
+
+// --- (이하 GET, DELETE 라우트는 동일합니다) ---
 
 router.get('/recent', async (req, res) => {
     const limit = parseInt(req.query.limit) || 5;
@@ -108,12 +97,7 @@ router.get('/recent', async (req, res) => {
         
         res.json({ success: true, count: result.rows.length, data: result.rows });
     } catch (err) {
-        console.error('Translation fetch error:', err.message);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Failed to fetch translations', 
-            details: err.message 
-        });
+        res.status(500).json({ success: false, error: 'Failed to fetch translations', details: err.message });
     }
 });
 
@@ -128,12 +112,7 @@ router.get('/', async (req, res) => {
         
         res.json({ success: true, count: result.rows.length, data: result.rows });
     } catch (err) {
-        console.error('Translation fetch error:', err.message);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Failed to fetch all translations', 
-            details: err.message 
-        });
+        res.status(500).json({ success: false, error: 'Failed to fetch all translations', details: err.message });
     }
 });
 
@@ -148,23 +127,12 @@ router.delete('/:id', async (req, res) => {
         );
         
         if (result.rowsAffected === 0) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Translation not found' 
-            });
+            return res.status(404).json({ success: false, message: 'Translation not found' });
         }
         
-        res.json({ 
-            success: true, 
-            message: 'Translation deleted successfully' 
-        });
+        res.json({ success: true, message: 'Translation deleted successfully' });
     } catch (err) {
-        console.error('Translation delete error:', err.message);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Failed to delete translation', 
-            details: err.message 
-        });
+        res.status(500).json({ success: false, error: 'Failed to delete translation', details: err.message });
     }
 });
 
@@ -176,18 +144,9 @@ router.delete('/', async (req, res) => {
             { autoCommit: true }
         );
         
-        res.json({ 
-            success: true, 
-            deletedCount: result.rowsAffected, 
-            message: 'All translations deleted successfully' 
-        });
+        res.json({ success: true, deletedCount: result.rowsAffected, message: 'All translations deleted successfully' });
     } catch (err) {
-        console.error('Translation delete all error:', err.message);
-        res.status(500).json({ 
-            success: false, 
-            error: 'Failed to delete all translations', 
-            details: err.message 
-        });
+        res.status(500).json({ success: false, error: 'Failed to delete all translations', details: err.message });
     }
 });
 

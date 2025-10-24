@@ -13,7 +13,6 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use('/api/translations', translationRoutes);
 app.use('/api/stt', sttRoutes);
@@ -33,23 +32,10 @@ app.use((req, res) => {
 async function startServer() {
     try {
         await db.initializeDB(); 
-        
-        app.listen(PORT, () => {
-            console.log('=================================');
-            console.log('Server is running on port', PORT);
-            console.log('Local: http://localhost:' + PORT);
-            console.log('Health check: http://localhost:' + PORT + '/');
-            console.log('=================================');
-        });
+        app.listen(PORT);
     } catch (err) {
-        console.error('Failed to start server:', err.message);
         process.exit(1);
     }
 }
 
 startServer();
-
-process.on('SIGINT', async () => {
-    console.log('\nShutting down gracefully...');
-    process.exit(0);
-});
